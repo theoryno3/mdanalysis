@@ -50,24 +50,6 @@ from MDAnalysis.topology.core import guess_atom_element
 import warnings
 
 
-class Timestep(base.Timestep):
-    @property
-    def dimensions(self):
-        """unitcell dimensions (`A, B, C, alpha, beta, gamma`)
-
-        - `A, B, C` are the lengths of the primitive cell vectors `e1, e2, e3`
-        - `alpha` = angle(`e1, e2`)
-        - `beta` = angle(`e1, e3`)
-        - `gamma` = angle(`e2, e3`)
-        """
-        # Layout of unitcell is [A,B,C,90,90,90] with the primitive cell vectors
-        return self._unitcell
-
-    @dimensions.setter
-    def dimensions(self, box):
-        self._unitcell = box
-
-
 class PDBQTReader(base.Reader):
     """PDBQTReader that reads a PDBQT-formatted file, no frills.
 
@@ -161,7 +143,7 @@ class PDBQTReader(base.Reader):
     """
     format = 'PDBQT'
     units = {'time': None, 'length': 'Angstrom'}
-    _Timestep = Timestep
+    _Timestep = base.Timestep
 
     def __init__(self, filename, convert_units=None, **kwargs):
         """Read coordinates from *filename*.
@@ -205,11 +187,11 @@ class PDBQTReader(base.Reader):
                     atoms.append(
                         (serial, name, resName, chainID, resSeq, occupancy, tempFactor, partialCharge, atomtype))
         self.numatoms = len(coords)
-        self.ts = self._Timestep(numpy.array(coords, dtype=numpy.float32))
+        self.ts = self._Timestep.from_coordinates(numpy.array(coords, dtype=numpy.float32))
         self.ts._unitcell[:] = unitcell
         self.ts.frame = 1  # 1-based frame number
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell[:3])  # in-place ! (only lengths)
         self.numframes = 1
         self.fixed = 0

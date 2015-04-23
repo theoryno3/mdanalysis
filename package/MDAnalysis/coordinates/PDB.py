@@ -234,24 +234,6 @@ from MDAnalysis import NoDataError
 logger = logging.getLogger("MDAnalysis.coordinates.PBD")
 
 
-class Timestep(base.Timestep):
-    @property
-    def dimensions(self):
-        """unitcell dimensions (`A, B, C, alpha, beta, gamma`)
-
-        - `A, B, C` are the lengths of the primitive cell vectors `e1, e2, e3`
-        - `alpha` = angle(`e1, e2`)
-        - `beta` = angle(`e1, e3`)
-        - `gamma` = angle(`e2, e3`)
-        """
-        # Layout of unitcell is [A,B,C,90,90,90] with the primitive cell vectors
-        return self._unitcell
-
-    @dimensions.setter
-    def dimensions(self, box):
-        self._unitcell = box
-
-
 class PDBReader(base.Reader):
     """Read a pdb file into a BioPython pdb structure.
 
@@ -264,7 +246,7 @@ class PDBReader(base.Reader):
     """
     format = 'PDB'
     units = {'time': None, 'length': 'Angstrom'}
-    _Timestep = Timestep
+    _Timestep = base.Timestep
 
     def __init__(self, pdbfilename, convert_units=None, **kwargs):
         self.pdbfilename = pdbfilename
@@ -284,11 +266,11 @@ class PDBReader(base.Reader):
         self.delta = 0
         self.skip_timestep = 1
         #self.ts._unitcell[:] = ??? , from CRYST1? --- not implemented in Biopython.PDB
-        self.ts = self._Timestep(pos)
+        self.ts = self._Timestep.from_coordinates(pos)
         self.ts.frame = 1
         del pos
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
 
     def get_bfactors(self):
         """Return an array of bfactors (tempFactor) in atom order."""
@@ -421,7 +403,7 @@ class PDBWriter(base.Writer):
             if not hasattr(ts, '_pos'):
                 raise TypeError("The PDBWriter can only process a Timestep as optional argument, not "
                                 "e.g. a selection. Use the PrimitivePDBWriter instead and see the docs.")
-            for a, pos in zip(self.PDBstructure.get_atoms(), ts._pos):
+            for a, pos in zip(self.PDBstructure.get_atoms(), ts._positions):
                 a.set_coord(pos)
             io = pdb.extensions.SloppyPDBIO()
             io.set_structure(self.PDBstructure)
@@ -477,7 +459,7 @@ class PrimitivePDBReader(base.Reader):
     """
     format = 'PDB'
     units = {'time': None, 'length': 'Angstrom'}
-    _Timestep = Timestep
+    _Timestep = base.Timestep
 
     def __init__(self, filename, convert_units=None, **kwargs):
         """Read coordinates from *filename*.
@@ -584,11 +566,11 @@ class PrimitivePDBReader(base.Reader):
         self.compound = compound
         self.remarks = remarks
         self.numatoms = len(coords)
-        self.ts = self._Timestep(numpy.array(coords, dtype=numpy.float32))
+        self.ts = self._Timestep.from_coordinates(numpy.array(coords, dtype=numpy.float32))
         self.ts.frame = 1  # 1-based frame number as starting frame
         self.ts._unitcell[:] = unitcell
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell[:3])  # in-place ! (only lengths)
 
         # No 'MODEL' entries
@@ -720,16 +702,16 @@ class PrimitivePDBReader(base.Reader):
                     continue
 
         # check if atom number changed
-        if len(coords) != len(self.ts._pos):
+        if len(coords) != len(self.ts._positions):
             raise ValueError(
                 "PrimitivePDBReader assumes that the number of atoms remains unchanged between frames; the current "
                 "frame has %d, the next frame has %d atoms" % (
-                    len(self.ts._pos), len(coords)))
+                    len(self.ts._positions), len(coords)))
 
-        self.ts = self._Timestep(numpy.array(coords, dtype=numpy.float32))
+        self.ts = self._Timestep.from_coordinates(numpy.array(coords, dtype=numpy.float32))
         self.ts._unitcell[:] = unitcell
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell[:3])  # in-place ! (only lengths)
         self.ts.frame = frame
         return self.ts
@@ -1176,9 +1158,9 @@ class PrimitivePDBWriter(base.Writer):
         traj = self.trajectory
         atoms = self.obj.atoms
         if self.convert_units:
-            coor = self.convert_pos_to_native(ts._pos, inplace=False)
+            coor = self.convert_pos_to_native(ts._positions, inplace=False)
         else:
-            coor = ts._pos
+            coor = ts._positions
 
         if hasattr(self.obj, "indices"):
             coor = coor[self.obj.indices()]
@@ -1186,7 +1168,7 @@ class PrimitivePDBWriter(base.Writer):
         if len(atoms) != len(coor):
             raise ValueError(
                 "Length of the atoms array is %d, this is different form the Timestep coordinate array %d" % (
-                    len(atoms), len(ts._pos)))
+                    len(atoms), len(ts._positions)))
 
         if multiframe:
             self.MODEL(self.frames_written + 1)

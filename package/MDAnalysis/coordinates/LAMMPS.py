@@ -184,7 +184,7 @@ class DATAReader(base.Reader):
 
         self.ts.frame = 1
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
 
     def __iter__(self):
         yield self.ts  # just a single frame available

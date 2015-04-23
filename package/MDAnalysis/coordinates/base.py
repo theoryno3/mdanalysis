@@ -90,6 +90,7 @@ module. The derived classes must follow the Trajectory API in
 
 """
 
+import copy
 import itertools
 import os.path
 import warnings
@@ -135,21 +136,15 @@ class Timestep(object):
     order = 'F'  # array order of coordinate like data
 
     def __init__(self, arg, **kwargs):
-        # arg must now be int!  remove this 0.11 or something
-        if issubclass(type(arg), self.__class__):
-            warnings.warn("Timestep init from other Timesteps has been deprecated."
-                          " Please use the class method Timestep.from_timestep")
-            return self.from_timestep(arg, **kwargs)
-        if isinstance(type(arg), np.ndarray):
-            warnings.warn("Timestep init from numpy array has been deprecated."
-                          " Please use the class metho Timestep.from_coordinates")
-            return self.from_coordinates(arg, **kwargs)
-
+        # Required stuff (as defined in API)
         self.frame = 0
         self.numatoms = arg
+        # Optional, format specific stuff
+        self.data = dict()
 
         try:
-            self._pos = np.zeros((arg, 3), dtype=self.dtype, order=self.order)
+            self._positions = np.zeros((arg, 3),
+                                 dtype=self.dtype, order=self.order)
         except TypeError:
             raise TypeError("Must initiate Timestep with integer value")
 
@@ -157,15 +152,17 @@ class Timestep(object):
         self.has_forces = kwargs.get('forces', False)
 
         if self.has_velocities:
-            self._velocities = np.zeros((arg, 3), dtype=self.dtype, order=self.order)
+            self._velocities = np.zeros((arg, 3),
+                                        dtype=self.dtype, order=self.order)
         if self.has_forces:
-            self._forces = np.zeros((arg, 3), dtype=self.dtype, order=self.order)
+            self._forces = np.zeros((arg, 3),
+                                    dtype=self.dtype, order=self.order)
 
         self._unitcell = self._init_unitcell()
 
-        self._x = self._pos[:, 0]
-        self._y = self._pos[:, 1]
-        self._z = self._pos[:, 2]
+        self._x = self._positions[:, 0]
+        self._y = self._positions[:, 1]
+        self._z = self._positions[:, 2]
 
     def _init_unitcell(self):
         """Create custom datastructure for :attr:`_unitcell`."""
@@ -190,13 +187,15 @@ class Timestep(object):
 
     @classmethod
     def from_timestep(cls, other):
-        """Initiate a new Timestep object of this format from another Timestep of any format
+        """Initiate a new Timestep object of this format from another Timestep
 
         .. versionadded:: 0.9.3
         """
         ts = cls(other.numatoms)
         ts.frame = other.frame
 
+        # Coordinate style data copy using property setters
+        # This allows receiving Timestep to define type/order
         ts.positions = other.positions
         try:
             ts.velocities = other.velocities
@@ -206,23 +205,27 @@ class Timestep(object):
             ts.forces = other.forces
         except NoDataError:
             pass
-
+        # Copy .dimensions and let Timestep define their own _unitcell
         ts.dimensions = other.dimensions
 
-        # Copy all attributes from other if they don't start with underscore
-        for attr in other.__dict__:
-            if not attr.startswith('_'):
-                setattr(ts, attr, getattr(other, attr))
+        ts.data = copy.deepcopy(other.data)
 
         return ts
 
+    def __getattr__(self, attr):
+        # If an attribute isn't found, try and look in .data
+        try:
+            return self.data[attr]
+        except KeyError:
+            raise AttributeError("Timestep object has no attribute {}".format(attr))
+
     @property
     def positions(self):
-        return self._pos
+        return self._positions
 
     @positions.setter
     def positions(self, new):
-        self._pos[:] = new
+        self._positions[:] = new
 
     @property
     def velocities(self):
@@ -236,7 +239,8 @@ class Timestep(object):
         try:
             self._velocities[:] = new
         except AttributeError:
-            self._velocities = np.zeros((self.numatoms, 3), dtype=self.dtype, order=self.order)
+            self._velocities = np.zeros((self.numatoms, 3),
+                                        dtype=self.dtype, order=self.order)
             self._velocities[:] = new
 
     @property
@@ -251,7 +255,8 @@ class Timestep(object):
         try:
             self._forces[:] = new
         except AttributeError:
-            self._forces = np.zeros((self.numatoms, 3), dtype=self.dtype, order=self.order)
+            self._forces = np.zeros((self.numatoms, 3),
+                                    dtype=self.dtype, order=self.order)
 
     def __getitem__(self, atoms):
         if np.dtype(type(atoms)) == np.dtype(int):
@@ -259,9 +264,9 @@ class Timestep(object):
                 atoms = self.numatoms + atoms
             if (atoms < 0) or (atoms >= self.numatoms):
                 raise IndexError
-            return self._pos[atoms]
+            return self._positions[atoms]
         elif type(atoms) == slice or type(atoms) == np.ndarray:
-            return self._pos[atoms]
+            return self._positions[atoms]
         else:
             raise TypeError
 
@@ -313,7 +318,7 @@ class Timestep(object):
 
         # List of attributes which will require slicing if present
         per_atom = [
-            '_x', '_y', '_z', '_pos', '_velocities', '_forces',
+            '_x', '_y', '_z', '_positions', '_velocities', '_forces',
             '_tpos', '_tvelocities', '_tforces']
 
         for attr in self.__dict__:

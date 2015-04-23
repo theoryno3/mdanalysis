@@ -147,103 +147,8 @@ except ImportError:
 
 
 class Timestep(base.Timestep):
-    """AMBER trajectory Timestep.
-
-    The Timestep can be initialized with *arg* being
-
-    1. an integer (the number of atoms) and an optional keyword argument *velocities* to allocate
-       space for both coordinates and velocities;
-    2. another :class:`Timestep` instance, in which case a copy is made (If the copied Timestep
-       does not contain velocities but *velocities* = ``True`` is provided, then space for
-       velocities is allocated);
-    3. a :class:`numpy.ndarray` of shape ``(numatoms, 3)`` (for positions only) or
-       ``(numatoms, 6)`` (for positions and velocities): ``positions = arg[:,:3]``,
-       ``velocities = arg[:,3:6]``.
-
-    """
-    # based on TRR Timestep (MDAnalysis.coordinates.xdrfile.TRR.Timestep)
-    #
-    # NOTE: kwargs is a new thing for Timesteps and not yet in the
-    # trajectory API; if this breaks something then we should simply make
-    # two different classes, one with the other without velocities. [orbeckst, 2012-05-29]
-    def __init__(self, arg, **kwargs):
-        velocities = kwargs.pop('velocities', False)
-        DIM = 3
-        if numpy.dtype(type(arg)) == numpy.dtype(int):
-            self.frame = 0
-            self.step = 0
-            self.time = 0
-            self.numatoms = arg
-            # C floats and C-order for arrays
-            self._pos = numpy.zeros((self.numatoms, DIM), dtype=numpy.float32, order='C')
-            if velocities:
-                self._velocities = numpy.zeros((self.numatoms, DIM), dtype=numpy.float32, order='C')
-            self._unitcell = numpy.zeros(2 * DIM, dtype=numpy.float32)  # A,B,C,alpha,beta,gamma
-        elif isinstance(arg, Timestep):  # Copy constructor
-            # This makes a deepcopy of the timestep
-            self.frame = arg.frame
-            self.numatoms = arg.numatoms
-            self._unitcell = numpy.array(arg._unitcell)
-            self._pos = numpy.array(arg._pos)
-            try:
-                self._velocities = numpy.array(arg._velocities)
-            except AttributeError:
-                pass
-            for attr in ('step', 'time', 'status'):
-                if hasattr(arg, attr):
-                    self.__setattr__(attr, arg.__getattribute__(attr))
-        elif isinstance(arg, numpy.ndarray):
-            # provide packed array shape == (natoms, 2*DIM)
-            # which contains pos = arg[:,0:3], v = arg[:,3:6]
-            # or just positions: pos = arg[:,0:3] == arg
-            if len(arg.shape) != 2:
-                raise ValueError("packed numpy array (x,v) can only have 2 dimensions")
-            self._unitcell = numpy.zeros(2 * DIM, dtype=numpy.float32)
-            self.frame = 0
-            self.step = 0
-            self.time = 0
-            if (arg.shape[0] == 2 * DIM and arg.shape[1] != 2 * DIM) or \
-                    (arg.shape[0] == DIM and arg.shape[1] != DIM):
-                # wrong order (but need to exclude case where natoms == DIM or natoms == 2*DIM!)
-                raise ValueError("AMBER timestep is to be initialized from (natoms, 2*3) or (natoms, 3) array")
-            self.numatoms = arg.shape[0]
-            self._pos = arg[:, 0:DIM].copy('C')  # C-order
-            if arg.shape[1] == 2 * DIM:
-                self._velocities = arg[:, DIM:2 * DIM].copy('C')  # C-order
-            elif arg.shape[1] == DIM and velocities:
-                self._velocities = numpy.zeros_like(self._pos)
-            elif arg.shape[1] == DIM:
-                # only positions
-                pass
-            else:
-                raise ValueError("AMBER timestep has no second dimension 3 or 6: shape=%r" % (arg.shape,))
-        else:
-            raise ValueError("Cannot create an empty Timestep")
-        self._x = self._pos[:, 0]
-        self._y = self._pos[:, 1]
-        self._z = self._pos[:, 2]
-
-    @property
-    def dimensions(self):
-        """unitcell dimensions (`A, B, C, alpha, beta, gamma`)
-
-        - `A, B, C` are the lengths of the primitive cell vectors `e1, e2, e3`
-        - `alpha` = angle(`e1, e2`)
-        - `beta` = angle(`e1, e3`)
-        - `gamma` = angle(`e2, e3`)
-
-        .. Note::
-
-           A :ref:`ASCII AMBER trajectory<ascii-trajectories>` only contains box lengths
-           `A,B,C`; we assume an orthorhombic box and set all
-           angles to 90º.
-        """
-        # Layout of unitcell is [A,B,C,90,90,90] with the primitive cell vectors
-        return self._unitcell
-
-    @dimensions.setter
-    def dimensions(self, box):
-        self._unitcell = box
+    """AMBER trajectory Timestep."""
+    order = 'C'
 
 
 class TRJReader(base.Reader):
@@ -342,7 +247,7 @@ class TRJReader(base.Reader):
         # probably slow ... could be optimized by storing the coordinates in X,Y,Z
         # lists or directly filling the array; the array/reshape is not good
         # because it creates an intermediate array
-        ts._pos[:] = numpy.array(_coords).reshape(self.numatoms, 3)
+        ts._positions[:] = numpy.array(_coords).reshape(self.numatoms, 3)
         ts.frame += 1
         return ts
 
@@ -515,7 +420,7 @@ class NCDFReader(base.Reader):
     format = 'NCDF'
     version = "1.0"
     units = {'time': 'ps', 'length': 'Angstrom', 'velocity': 'Angstrom/ps'}
-    _Timestep = Timestep
+    _Timestep = base.Timestep
 
     def __init__(self, filename, numatoms=None, **kwargs):
         try:
@@ -605,7 +510,7 @@ class NCDFReader(base.Reader):
         if frame >= self.numframes or frame < 0:
             raise IndexError("frame index must be 0 <= frame < {0}".format(self.numframes))
         # note: self.trjfile.variables['coordinates'].shape == (frames, numatoms, 3)
-        ts._pos[:] = self.trjfile.variables['coordinates'][frame]
+        ts._positions[:] = self.trjfile.variables['coordinates'][frame]
         ts.time = self.trjfile.variables['time'][frame]
         if self.has_velocities:
             ts._velocities[:] = self.trjfile.variables['velocities'][frame]
@@ -613,7 +518,7 @@ class NCDFReader(base.Reader):
             ts._unitcell[:3] = self.trjfile.variables['cell_lengths'][frame]
             ts._unitcell[3:] = self.trjfile.variables['cell_angles'][frame]
         if self.convert_units:
-            self.convert_pos_from_native(ts._pos)  # in-place !
+            self.convert_pos_from_native(ts._positions)  # in-place !
             self.convert_time_from_native(ts.time)  # in-place ! (hope this works...)
             if self.has_velocities:
                 self.convert_velocities_from_native(ts._velocities)  # in-place !
@@ -900,14 +805,14 @@ class NCDFWriter(base.Writer):
             # implementation could lead to memory problems and/or slow-down for
             # very big systems because we temporarily create a new array pos
             # for each frame written
-            pos = self.convert_pos_to_native(ts._pos, inplace=False)
+            pos = self.convert_pos_to_native(ts._positions, inplace=False)
             try:
                 time = self.convert_time_to_native(ts.time, inplace=False)
             except AttributeError:
                 time = ts.frame * self.convert_time_to_native(self.delta, inplace=False)
             unitcell = self.convert_dimensions_to_unitcell(ts)
         else:
-            pos = ts._pos
+            pos = ts._positions
             try:
                 time = ts.time
             except AttributeError:

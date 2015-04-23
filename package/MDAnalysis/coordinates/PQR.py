@@ -137,11 +137,11 @@ class PQRReader(base.Reader):
                     atoms.append(
                         (int(serial), name, resName, chainID, int(resSeq), float(charge), float(radius), segID))
         self.numatoms = len(coords)
-        self.ts = self._Timestep(numpy.array(coords, dtype=numpy.float32))
+        self.ts = self._Timestep.from_coordinats(numpy.array(coords, dtype=numpy.float32))
         self.ts._unitcell[:] = unitcell
         self.ts.frame = 1  # 1-based frame number
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell[:3])  # in-place ! (only lengths)
         self.numframes = 1
         self.fixed = 0

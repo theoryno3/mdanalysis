@@ -314,10 +314,10 @@ class DCDWriter(base.Writer):
         elif not ts.numatoms == self.numatoms:
             raise ValueError("DCDWriter: Timestep does not have the correct number of atoms")
         unitcell = self.convert_dimensions_to_unitcell(ts).astype(numpy.float32)  # must be float32 (!)
-        if not ts._pos.flags.f_contiguous:  # Not in fortran format
-            ts = Timestep(ts)  # wrap in a new fortran formatted Timestep
+        if not ts._positions.flags.f_contiguous:  # Not in fortran format
+            ts = Timestep.from_coordinates(ts)  # wrap in a new fortran formatted Timestep
         if self.convert_units:
-            pos = self.convert_pos_to_native(ts._pos,
+            pos = self.convert_pos_to_native(ts._positions,
                                              inplace=False)  # possibly make a copy to avoid changing the trajectory
         self._write_next_frame(pos[:, 0], pos[:, 1], pos[:, 2], unitcell)
         self.frames_written += 1

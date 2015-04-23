@@ -84,64 +84,6 @@ from MDAnalysis.coordinates.core import triclinic_box
 
 class Timestep(base.Timestep):
     """ TRZ custom Timestep"""
-
-    def __init__(self, arg, **kwargs):
-        self.has_force = kwargs.pop('has_force', False)
-        if numpy.dtype(type(arg)) == numpy.dtype(int):
-            self.frame = 0
-            self.step = 0
-            self.numatoms = arg
-            self.time = 0.0
-            self.pressure = 0.0
-            self.pressure_tensor = numpy.zeros((6), dtype=numpy.float64)
-            self.total_energy = 0.0
-            self.potential_energy = 0.0
-            self.kinetic_energy = 0.0
-            self.temperature = 0.0
-            self._pos = numpy.zeros((self.numatoms, 3), dtype=numpy.float32, order='F')
-            self._velocities = numpy.zeros((self.numatoms, 3), dtype=numpy.float32, order='F')
-            if self.has_force:
-                self._forces = numpy.zeros((self.numatoms, 3), dtype=numpy.float32, order='F')
-            self._unitcell = numpy.zeros((9), dtype=numpy.float64, order='F')
-        elif isinstance(arg, Timestep):  # Copy constructor
-            # This makes a deepcopy of the timestep
-            self.frame = arg.frame
-            self.step = arg.step
-            self.numatoms = arg.numatoms
-            self.time = arg.time
-            self.pressure = arg.pressure
-            self.pressure_tensor = numpy.array(arg.pressure_tensor)
-            self.total_energy = arg.total_energy
-            self.potential_energy = arg.potential_energy
-            self.kinetic_energy = arg.kinetic_energy
-            self.temperature = arg.temperature
-            self._unitcell = numpy.array(arg._unitcell)
-            self._pos = numpy.array(arg._pos, order='F')
-            self._velocities = numpy.array(arg._velocities, order='F')
-            if self.has_force:
-                self._forces = numpy.array(arg._forces, order='F')
-        elif isinstance(arg, numpy.ndarray):
-            if len(arg.shape) != 2:
-                raise ValueError("numpy array can only have 2 dimensions")
-            self._unitcell = numpy.zeros((9), dtype=numpy.float64)
-            self.frame = 0
-            self.step = 0
-            self.numatoms = arg.shape[0]
-            self.time = 0.0
-            self.pressure = 0.0
-            self.pressure_tensor = numpy.zeros((6), dtype=numpy.float64)
-            self.total_energy = 0.0
-            self.potential_energy = 0.0
-            self.kinetic_energy = 0.0
-            self.temperature = 0.0  # Temperature in Kelvin
-            self._velocities = numpy.zeros((self.numatoms, 3), dtype=numpy.float32, order='F')
-            self._pos = arg.astype(numpy.float32).copy('Fortran', )
-        else:
-            raise ValueError("Cannot create an empty Timestep")
-        self._x = self._pos[:, 0]
-        self._y = self._pos[:, 1]
-        self._z = self._pos[:, 2]
-
     @property
     def dimensions(self):
         """
@@ -221,7 +163,8 @@ class TRZReader(base.Reader):
         self.__skip_timestep = None
 
         self._read_trz_header()
-        self.ts = Timestep(self.numatoms, has_force=self.has_force)
+        self.ts = Timestep(self.numatoms, velocities=True,
+                           has_force=self.has_force)
 
         # structured dtype of a single trajectory frame
         readarg = str(numatoms) + 'f4'
@@ -292,15 +235,15 @@ class TRZReader(base.Reader):
         try:
             data = numpy.fromfile(self.trzfile, dtype=self._dtype, count=1)
             ts.frame = data['nframe'][0]
-            ts.step = data['ntrj'][0]
+            ts.data['step'] = data['ntrj'][0]
             ts.time = data['treal'][0]
             ts._unitcell[:] = data['box']
-            ts.pressure = data['pressure']
-            ts.pressure_tensor[:] = data['ptensor']
-            ts.total_energy = data['etot']
-            ts.potential_energy = data['ptot']
-            ts.kinetic_energy = data['ek']
-            ts.temperature = data['T']
+            ts.data['pressure'] = data['pressure']
+            ts.data['pressure_tensor'] = data['ptensor']
+            ts.data['total_energy'] = data['etot']
+            ts.data['potential_energy'] = data['ptot']
+            ts.data['kinetic_energy'] = data['ek']
+            ts.data['temperature'] = data['T']
             ts._x[:] = data['rx']
             ts._y[:] = data['ry']
             ts._z[:] = data['rz']
@@ -316,7 +259,7 @@ class TRZReader(base.Reader):
         else:
             # Convert things read into MDAnalysis' native formats (nm -> angstroms)
             if self.convert_units:
-                self.convert_pos_from_native(self.ts._pos)
+                self.convert_pos_from_native(self.ts._positions)
                 self.convert_pos_from_native(self.ts._unitcell)
                 self.convert_velocities_from_native(self.ts._velocities)
 

@@ -198,9 +198,9 @@ class XYZWriter(base.Writer):
             self.atomnames = numpy.array([self.atomnames[0]] * ts.numatoms)
 
         if self.convert_units:
-            coordinates = self.convert_pos_to_native(ts._pos, inplace=False)
+            coordinates = self.convert_pos_to_native(ts._positions, inplace=False)
         else:
-            coordinates = ts._pos
+            coordinates = ts._positions
 
         self.xyz.write("{0:d}\n".format(ts.numatoms))
         self.xyz.write("frame {0}\n".format(ts.frame))

@@ -46,32 +46,10 @@ from .. import core
 import MDAnalysis.core.util as util
 
 
-class Timestep(base.Timestep):
-    @property
-    def dimensions(self):
-        """unitcell dimensions (`A, B, C, alpha, beta, gamma`)
-
-        MOL2 does not contain unitcell information but for
-        compatibility, an empty unitcell is provided.
-
-        - `A, B, C` are the lengths of the primitive cell vectors `e1, e2, e3`
-        - `alpha` = angle(`e1, e2`)
-        - `beta` = angle(`e1, e3`)
-        - `gamma` = angle(`e2, e3`)
-
-        """
-        # Layout of unitcell is [A,B,C,90,90,90] with the primitive cell vectors
-        return self._unitcell
-
-    @dimensions.setter
-    def dimensions(self, box):
-        self._unitcell = box
-
-
 class MOL2Reader(base.Reader):
     format = 'MOL2'
     units = {'time': None, 'length': 'Angstrom'}
-    _Timestep = Timestep
+    _Timestep = base.Timestep
 
     def __init__(self, filename, convert_units=None, **kwargs):
         """Read coordinates from *filename*.
@@ -113,7 +91,7 @@ class MOL2Reader(base.Reader):
         self.ts.frame = 1  # 1-based frame number as starting frame
 
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell[:3])  # in-place ! (only lengths)
 
         self.molecule = {}
@@ -188,16 +166,16 @@ class MOL2Reader(base.Reader):
         self.substructure[frame] = sections["substructure"]
 
         # check if atom number changed
-        if len(coords) != len(self.ts._pos):
+        if len(coords) != len(self.ts._positions):
             raise ValueError(
                 "PrimitivePDBReader assumes that the number of atoms remains unchanged between frames; the current "
                 "frame has %d, the next frame has %d atoms" % (
-                len(self.ts._pos), len(coords)))
+                    len(self.ts._positions), len(coords)))
 
         self.ts = self._Timestep(np.array(coords, dtype=np.float32))
         self.ts._unitcell[:] = unitcell
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell[:3])  # in-place ! (only lengths)
         self.ts.frame = frame
         return self.ts

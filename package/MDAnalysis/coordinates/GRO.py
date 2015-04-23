@@ -29,15 +29,13 @@ Classes to read and write Gromacs_ GRO_ coordinate files; see the notes on the
 import os
 import errno
 import warnings
-
 import numpy
+from copy import deepcopy
 
 import MDAnalysis
 import base
 import MDAnalysis.core.util as util
 from MDAnalysis.coordinates.core import triclinic_box, triclinic_vectors
-
-from copy import deepcopy
 
 
 class Timestep(base.Timestep):
@@ -126,15 +124,17 @@ class GROReader(base.Reader):
 
         self.numatoms = len(coords_list)
         coords_list = numpy.array(coords_list)
-        self.ts = self._Timestep(coords_list)
+
+        has_vel = len(velocities_list) > 0
+
+        self.ts = self._Timestep(self.numatoms, velocities=has_vel)
+        self.ts.positions = coords_list
         self.ts.frame = 1  # 1-based frame number
-        if velocities_list:  # perform this operation only if velocities are present in coord file
-            # TODO: use a Timestep that knows about velocities such as TRR.Timestep or better, TRJ.Timestep
-            self.ts._velocities = numpy.array(velocities_list, dtype=numpy.float32)
-            self.convert_velocities_from_native(self.ts._velocities)  # converts nm/ps to A/ps units
+        if has_vel:  # perform this operation only if velocities are present in coord file
+            self.ts.velocities = velocities_list
+
         # ts._unitcell layout is format dependent; Timestep.dimensions does the conversion
         # behind the scene
-        self.ts._unitcell = numpy.zeros(9, dtype=numpy.float32)  # GRO has 9 entries
         if len(unitcell) == 3:
             # special case: a b c --> (a 0 0) (b 0 0) (c 0 0)
             # see Timestep.dimensions() above for format (!)
@@ -142,13 +142,14 @@ class GROReader(base.Reader):
         elif len(unitcell) == 9:
             self.ts._unitcell[:] = unitcell  # fill all
         else:  # or maybe raise an error for wrong format??
-            import warnings
-
             warnings.warn("GRO unitcell has neither 3 nor 9 entries --- might be wrong.")
             self.ts._unitcell[:len(unitcell)] = unitcell  # fill linearly ... not sure about this
+
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell)  # in-place ! (all are lengths)
+            if has_vel:
+                self.convert_velocities_from_native(self.ts._velocities)  # converts nm/ps to A/ps units
         self.numframes = 1
         self.fixed = 0
         self.skip = 1

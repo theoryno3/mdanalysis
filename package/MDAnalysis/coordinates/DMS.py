@@ -29,7 +29,7 @@ coordinate files (as used by the Desmond_ MD package).
 import os
 import errno
 import warnings
-
+from copy import deepcopy
 import numpy
 import sqlite3
 
@@ -37,8 +37,6 @@ import MDAnalysis
 import base
 import MDAnalysis.core.util as util
 from MDAnalysis.coordinates.core import triclinic_box, triclinic_vectors
-
-from copy import deepcopy
 
 
 class Timestep(base.Timestep):
@@ -114,18 +112,17 @@ class DMSReader(base.Reader):
         assert coords_list
         self.numatoms = len(coords_list)
         coords_list = numpy.array(coords_list)
-        self.ts = self._Timestep(coords_list)
+        self.ts = self._Timestep.from_coordinates(coords_list)
         self.ts.frame = 1  # 1-based frame number
         if velocities_list:  # perform this operation only if velocities are present in coord file
-            # TODO: use a Timestep that knows about velocities such as TRR.Timestep or better, TRJ.Timestep
             velocities_arr = numpy.array(velocities_list, dtype=numpy.float32)
             if numpy.any(velocities_arr):
-                self.ts._velocities = velocities_arr
+                self.ts.velocities = velocities_arr
                 self.convert_velocities_from_native(self.ts._velocities)  # converts nm/ps to A/ps units
         # ts._unitcell layout is format dependent; Timestep.dimensions does the conversion
         self.ts._unitcell = unitcell
         if self.convert_units:
-            self.convert_pos_from_native(self.ts._pos)  # in-place !
+            self.convert_pos_from_native(self.ts._positions)  # in-place !
             self.convert_pos_from_native(self.ts._unitcell)  # in-place ! (all are lengths)
         self.numframes = 1
         self.fixed = 0

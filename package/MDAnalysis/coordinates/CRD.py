@@ -31,32 +31,12 @@ import numpy
 import base
 
 
-class Timestep(base.Timestep):
-    @property
-    def dimensions(self):
-        """unitcell dimensions (*A*, *B*, *C*, *alpha*, *beta*, *gamma*)
-
-        CRD files do not contain unitcell information but in order to
-        allow interoperability (and give the use a chance to set the
-        simulation box themselves for e.g. writing out to different
-        formats) we add an empty unit cell, i.e. when reading a CRD
-        file this will only contain zeros.
-
-        lengths *a*, *b*, *c* are in the MDAnalysis length unit (Å), and
-        angles are in degrees.
-        """
-        return self._unitcell
-
-    @dimensions.setter
-    def dimensions(self, box):
-        self._unitcell[:] = box
-
 class CRDReader(base.Reader):
     """CRD reader that implements the standard and extended CRD coordinate formats
     """
     format = 'CRD'
     units = {'time': None, 'length': 'Angstrom'}
-    _Timestep = Timestep
+    _Timestep = base.Timestep
 
     def __init__(self, crdfilename, convert_units=None, **kwargs):
         # EXT:
@@ -103,10 +83,8 @@ class CRDReader(base.Reader):
         self.periodic = False
         self.delta = 0
         self.skip_timestep = 1
-        self.ts = self._Timestep(numpy.array(coords_list))
+        self.ts = self._Timestep.from_coordinates(numpy.array(coords_list))
         self.ts.frame = 1  # 1-based frame number
-        # if self.convert_units:
-        #    self.convert_pos_from_native(self.ts._pos)             # in-place !
 
         # sanity check
         if self.numatoms != natoms:
