@@ -16,8 +16,10 @@
 #
 
 """
-MDAnalysis distance calculation library --- :mod:`MDAnalysis.lib._distances`
-============================================================================
+Distance calculation library --- :mod:`MDAnalysis.lib._distances`
+=================================================================
+
+Serial versions of all distance calculations
 """
 
 cimport c_numpy

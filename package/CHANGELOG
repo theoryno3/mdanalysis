@@ -10,7 +10,8 @@ The rules for this file:
     use tabs but use spaces for formatting
 
 ------------------------------------------------------------------------------
-??/??/15  richardjgowers, caio s. souza, manuel.nuno.melo, orbeckst
+??/??/15  richardjgowers, caio s. souza, manuel.nuno.melo, orbeckst, 
+          sseyler
   * 0.10.0
 
   Enhancements
@@ -28,6 +29,9 @@ The rules for this file:
   * Added Amber coordinate/restart file reader (Issue #262)
   * Structural superpositions (MDAnalysis.analysis.align) can work
     with partial matches of atoms.
+  * new path similarity analysis module MDAnalysis.analysis.psa
+  * AtomGroup and TopologyGroup can now be indexed by numpy boolean arrays
+    works identically to numpy masks. (Issue #282)
 
   Changes
 
@@ -38,6 +42,8 @@ The rules for this file:
   * PrimitivePDBReader now requires the numatoms keyword
   * Structural superpositions (MDAnalysis.analysis.align) use partial
     matches of atoms by default (use strict=True for old behavior)
+  * Function rmsd() was removed from MDAnalysis.analysis.align name
+    space and should be accessed as MDAnalysis.analysis.rms.rmsd()
 
   Fixes
 
